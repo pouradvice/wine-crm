@@ -867,14 +867,14 @@ function ClientsScreen({ onToast }) {
   const load = async () => {
     setLoading(true);
 
-    // 1. Load clients (simple query — same table as Account search)
+    // 1. Load clients — explicit limit to bypass Supabase's default 1000-row cap
     const { data: clientData, error: clientErr } = await sb.from('clients')
-      .select('*').order('company_name');
+      .select('*').order('company_name').limit(5000);
     if (clientErr) { onToast('Error loading clients: ' + clientErr.message); setLoading(false); return; }
 
     // 2. Load recaps to derive last visit per client
     const { data: recapData } = await sb.from('recaps')
-      .select('client_id, visit_date').order('visit_date', { ascending: false });
+      .select('client_id, visit_date').order('visit_date', { ascending: false }).limit(10000);
     const vMap = {};
     (recapData || []).forEach(r => {
       if (r.client_id && !vMap[r.client_id]) vMap[r.client_id] = r.visit_date;
@@ -882,7 +882,7 @@ function ClientsScreen({ onToast }) {
 
     // 3. Load recap_products_shown via recaps to count unique SKUs per client
     const { data: shownData } = await sb.from('recap_products_shown')
-      .select('product_id, recaps(client_id)');
+      .select('product_id, recaps(client_id)').limit(10000);
     const sMap = {};
     (shownData || []).forEach(r => {
       const cid = r.recaps?.client_id;
