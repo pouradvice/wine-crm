@@ -864,25 +864,38 @@ function ClientsScreen({ onToast }) {
   const [skuMap,    setSkuMap]    = useState({});  // clientId -> Set of product_ids
   const [visitMap,  setVisitMap]  = useState({});  // clientId -> last visit date
 
+  const fetchAll = async (table, query) => {
+    const PAGE = 1000;
+    let from = 0, all = [];
+    while (true) {
+      const { data, error } = await query(sb.from(table)).range(from, from + PAGE - 1);
+      if (error) return { data: all, error };
+      all = all.concat(data || []);
+      if ((data || []).length < PAGE) break;
+      from += PAGE;
+    }
+    return { data: all, error: null };
+  };
+
   const load = async () => {
     setLoading(true);
 
-    // 1. Load clients — explicit limit to bypass Supabase's default 1000-row cap
-    const { data: clientData, error: clientErr } = await sb.from('clients')
-      .select('*').order('company_name').limit(5000);
+    // 1. Load ALL clients in batches to bypass Supabase's default 1000-row cap
+    const { data: clientData, error: clientErr } = await fetchAll('clients',
+      q => q.select('*').order('company_name'));
     if (clientErr) { onToast('Error loading clients: ' + clientErr.message); setLoading(false); return; }
 
     // 2. Load recaps to derive last visit per client
-    const { data: recapData } = await sb.from('recaps')
-      .select('client_id, visit_date').order('visit_date', { ascending: false }).limit(10000);
+    const { data: recapData } = await fetchAll('recaps',
+      q => q.select('client_id, visit_date').order('visit_date', { ascending: false }));
     const vMap = {};
     (recapData || []).forEach(r => {
       if (r.client_id && !vMap[r.client_id]) vMap[r.client_id] = r.visit_date;
     });
 
     // 3. Load recap_products_shown via recaps to count unique SKUs per client
-    const { data: shownData } = await sb.from('recap_products_shown')
-      .select('product_id, recaps(client_id)').limit(10000);
+    const { data: shownData } = await fetchAll('recap_products_shown',
+      q => q.select('product_id, recaps(client_id)'));
     const sMap = {};
     (shownData || []).forEach(r => {
       const cid = r.recaps?.client_id;
