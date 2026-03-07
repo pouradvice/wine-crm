@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pour Advice — Weekly Supplier Activity Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink:        #1a1409;
+      --parchment:  #f5f0e8;
+      --cream:      #faf7f2;
+      --wine:       #6b1f2a;
+      --wine-light: #9b3a47;
+      --gold:       #c9973a;
+      --gold-light: #e8c57a;
+      --gold-pale:  #fdf8ee;
+      --sage:       #7a8c6e;
+      --sage-pale:  #eef1eb;
+      --mist:       #e8e2d8;
+      --mist-dark:  #d4cec4;
+      --warm-gray:  #8a7a64;
+      --shadow-sm:  0 1px 3px rgba(26,20,9,0.08);
+      --shadow-md:  0 2px 8px rgba(26,20,9,0.12);
+    }
+
+    html { font-size: 16px; }
+    body { background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; line-height: 1.6; min-height: 100vh; }
+    .page-wrapper { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+
+    /* ── MASTHEAD ─────────────────────────────────────── */
+    .masthead { border-bottom: 1px solid var(--mist-dark); padding: 2rem 0 1.4rem; margin-bottom: 1.75rem; }
+    .masthead-inner { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .masthead-brand { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: var(--ink); letter-spacing: 0.02em; }
+    .masthead-brand span { color: var(--wine); }
+    .masthead-tagline { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--warm-gray); margin-top: 0.2rem; }
+    .masthead-right { text-align: right; }
+    .masthead-report-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--ink); }
+    .masthead-date-range { font-size: 0.74rem; color: var(--warm-gray); margin-top: 0.1rem; }
+
+    /* ── CONTROLS ─────────────────────────────────────── */
+    .controls-bar { background: white; border: 1px solid var(--mist); border-radius: 10px; padding: 1.1rem 1.4rem; margin-bottom: 1.6rem; box-shadow: var(--shadow-sm); display: flex; flex-wrap: wrap; gap: 0.85rem; align-items: flex-end; }
+    .control-group { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 128px; }
+    .control-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--warm-gray); }
+    .control-input { padding: 0.46rem 0.7rem; border: 1.5px solid var(--mist); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.83rem; color: var(--ink); background: var(--cream); transition: border-color 0.2s, box-shadow 0.2s; appearance: none; -webkit-appearance: none; }
+    .control-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,151,58,0.14); background: white; }
+    .upload-btn-wrap { display: flex; flex-direction: column; gap: 0.25rem; }
+    .upload-btn { padding: 0.46rem 1rem; background: var(--wine); color: white; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: background 0.18s; white-space: nowrap; }
+    .upload-btn:hover { background: var(--wine-light); }
+    #csv-file-input { display: none; }
+    .upload-status { font-size: 0.69rem; color: var(--warm-gray); font-style: italic; min-height: 1em; }
+    .upload-status.loaded { color: var(--sage); font-style: normal; font-weight: 500; }
+    .upload-status.error  { color: var(--wine); font-style: normal; }
+
+    /* ── SUMMARY STRIP ────────────────────────────────── */
+    .summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem; margin-bottom: 1.75rem; }
+    .stat-card { background: white; border: 1px solid var(--mist); border-radius: 10px; padding: 1.05rem 1.2rem; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--gold); }
+    .stat-card:nth-child(2)::before { background: var(--wine); }
+    .stat-card:nth-child(3)::before { background: var(--sage); }
+    .stat-value { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; color: var(--ink); line-height: 1; margin-bottom: 0.22rem; }
+    .stat-label { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--warm-gray); }
+
+    /* ── SUPPLIER BANNER ──────────────────────────────── */
+    .supplier-banner { background: linear-gradient(135deg, var(--wine) 0%, #4a1520 100%); color: white; border-radius: 10px; padding: 1.05rem 1.5rem; margin-bottom: 1.6rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; box-shadow: var(--shadow-md); }
+    .supplier-banner-label { font-size: 0.64rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; opacity: 0.65; margin-bottom: 0.18rem; }
+    .supplier-banner-name { font-family: 'Playfair Display', serif; font-size: 1.35rem; font-weight: 700; }
+    .supplier-banner-period { font-size: 0.74rem; opacity: 0.75; margin-top: 0.12rem; }
+    .supplier-banner-icon { font-size: 2rem; opacity: 0.22; }
+    .supplier-banner.hidden { display: none; }
+
+    /* ── DATE GROUP: date is the outer container ──────── */
+    .date-groups { display: flex; flex-direction: column; gap: 1rem; }
+
+    .date-group {
+      border: 1px solid var(--mist-dark);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .date-group-header {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.6rem 1.1rem;
+      background: var(--parchment);
+      border-bottom: 1px solid var(--mist-dark);
+    }
+    .date-group-weekday {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--wine);
+      flex-shrink: 0;
+    }
+    .date-group-label {
+      font-family: 'Playfair Display', serif;
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--ink);
+      flex: 1;
+    }
+    .date-group-count {
+      font-size: 0.66rem;
+      font-weight: 600;
+      color: var(--warm-gray);
+      background: white;
+      border: 1px solid var(--mist);
+      border-radius: 20px;
+      padding: 0.08rem 0.52rem;
+      white-space: nowrap;
+    }
+
+    /* ── VISIT ROWS (inside a date group) ─────────────── */
+    .visit-rows { background: white; }
+    .visit-row { border-bottom: 1px solid var(--mist); }
+    .visit-row:last-child { border-bottom: none; }
+
+    .visit-row-header {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.7rem 1.1rem;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.14s;
+    }
+    .visit-row-header:hover { background: #fdf9f4; }
+    .visit-row.open > .visit-row-header { background: var(--parchment); }
+
+    .visit-client-col { flex: 1; min-width: 0; }
+    .visit-client-name { font-family: 'Playfair Display', serif; font-size: 0.93rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .visit-client-meta { font-size: 0.71rem; color: var(--warm-gray); margin-top: 0.04rem; }
+
+    .visit-pills { display: flex; align-items: center; gap: 0.38rem; flex-shrink: 0; }
+    .pill { display: inline-flex; align-items: center; padding: 0.13rem 0.48rem; border-radius: 20px; font-size: 0.67rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+    .pill-sku { background: var(--parchment); color: var(--warm-gray); border: 1px solid var(--mist); }
+    .pill-fu  { background: var(--gold-pale); color: #8a6420; border: 1px solid var(--gold-light); }
+
+    .visit-chevron { font-size: 0.58rem; color: var(--wine); flex-shrink: 0; transition: transform 0.2s; }
+    .visit-row.open .visit-chevron { transform: rotate(180deg); }
+
+    /* ── EXPANDED DETAIL ──────────────────────────────── */
+    .visit-row-body {
+      display: none;
+      padding: 0.8rem 1.1rem 0.95rem;
+      background: var(--cream);
+      border-top: 1px solid var(--mist);
+    }
+    .visit-row.open > .visit-row-body { display: block; }
+
+    .expand-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--warm-gray);
+      margin-bottom: 0.45rem;
+    }
+    .product-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.7rem;
+      padding: 0.38rem 0;
+      border-bottom: 1px solid var(--mist);
+    }
+    .product-line:last-child { border-bottom: none; }
+    .product-line-name { flex: 1; font-size: 0.84rem; }
+    .product-brand { font-weight: 600; color: var(--ink); }
+    .product-wine  { font-style: italic; color: var(--warm-gray); }
+    .product-fu {
+      flex-shrink: 0;
+      font-size: 0.67rem;
+      font-weight: 600;
+      color: #8a6420;
+      background: var(--gold-pale);
+      border: 1px solid var(--gold-light);
+      border-radius: 4px;
+      padding: 0.09rem 0.42rem;
+      white-space: nowrap;
+    }
+    .visit-notes-block {
+      margin-top: 0.7rem;
+      padding: 0.55rem 0.8rem;
+      background: var(--sage-pale);
+      border-left: 2.5px solid var(--sage);
+      border-radius: 0 5px 5px 0;
+      font-size: 0.82rem;
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    .visit-notes-label {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin-bottom: 0.22rem;
+    }
+
+    /* ── STATE PANELS ─────────────────────────────────── */
+    .state-panel { background: white; border: 1px solid var(--mist); border-radius: 10px; padding: 3rem 2rem; text-align: center; box-shadow: var(--shadow-sm); }
+    .state-icon  { font-size: 2.2rem; margin-bottom: 0.85rem; opacity: 0.35; }
+    .state-title { font-family: 'Playfair Display', serif; font-size: 1.05rem; color: var(--ink); margin-bottom: 0.4rem; }
+    .state-body  { font-size: 0.82rem; color: var(--warm-gray); max-width: 360px; margin: 0 auto; line-height: 1.6; }
+    .state-body strong { font-weight: 600; color: var(--ink); }
+
+    /* ── FOOTER ───────────────────────────────────────── */
+    .report-footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid var(--mist); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    .footer-brand { font-family: 'Playfair Display', serif; font-size: 0.84rem; color: var(--warm-gray); }
+    .footer-meta  { font-size: 0.69rem; color: var(--mist-dark); }
+    .print-btn { padding: 0.4rem 0.88rem; background: transparent; border: 1.5px solid var(--mist-dark); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 500; color: var(--warm-gray); cursor: pointer; transition: all 0.18s; }
+    .print-btn:hover { background: var(--parchment); color: var(--ink); }
+
+    /* ── PRINT ────────────────────────────────────────── */
+    @media print {
+      body { background: white; font-size: 10.5pt; }
+      .controls-bar, .print-btn { display: none !important; }
+      .page-wrapper { padding: 0; max-width: 100%; }
+      .date-group { break-inside: avoid; box-shadow: none; border-color: #ccc; }
+      .visit-row-body { display: block !important; }
+      .visit-chevron { display: none; }
+      .visit-row-header:hover { background: transparent; }
+      .visit-row.open > .visit-row-header { background: var(--parchment); }
+      .supplier-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .stat-card::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .date-group-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
+    /* ── RESPONSIVE ───────────────────────────────────── */
+    @media (max-width: 580px) {
+      .summary-strip { grid-template-columns: 1fr; }
+      .controls-bar { flex-direction: column; }
+      .masthead-inner { flex-direction: column; align-items: flex-start; }
+      .masthead-right { text-align: left; }
+      .pill-sku { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div>
+        <div class="masthead-brand">Pour <span>Advice</span></div>
+        <div class="masthead-tagline">Weekly Supplier Activity Report</div>
+      </div>
+      <div class="masthead-right">
+        <div class="masthead-report-title" id="report-title">No data loaded</div>
+        <div class="masthead-date-range" id="report-date-range">Upload a CSV to get started</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls-bar">
+    <div class="upload-btn-wrap">
+      <label class="control-label">Data Source</label>
+      <button class="upload-btn" onclick="document.getElementById('csv-file-input').click()">⬆ Upload CSV</button>
+      <input type="file" id="csv-file-input" accept=".csv" />
+      <div class="upload-status" id="upload-status">No file selected</div>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="filter-supplier">Filter by Brand</label>
+      <select class="control-input" id="filter-supplier"><option value="">All Brands</option></select>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="date-from">From</label>
+      <input type="date" class="control-input" id="date-from" />
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="date-to">To</label>
+      <input type="date" class="control-input" id="date-to" />
+    </div>
+  </div>
+
+  <div class="summary-strip">
+    <div class="stat-card"><div class="stat-value" id="stat-accounts">—</div><div class="stat-label">Accounts Visited</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-products">—</div><div class="stat-label">Products Shown</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-followups">—</div><div class="stat-label">Follow-Ups Scheduled</div></div>
+  </div>
+
+  <div class="supplier-banner hidden" id="supplier-banner">
+    <div>
+      <div class="supplier-banner-label">Supplier Report</div>
+      <div class="supplier-banner-name" id="supplier-banner-name"></div>
+      <div class="supplier-banner-period" id="supplier-banner-period"></div>
+    </div>
+    <div class="supplier-banner-icon">🍷</div>
+  </div>
+
+  <div id="report-body">
+    <div class="state-panel">
+      <div class="state-icon">📋</div>
+      <div class="state-title">No data loaded</div>
+      <div class="state-body">
+        Upload a CSV exported from the Pour Advice Recap Log.<br><br>
+        Expected columns: <strong>visit_date, client, brand_name, wine_name, follow_up_date, notes</strong>
+      </div>
+    </div>
+  </div>
+
+  <footer class="report-footer">
+    <div class="footer-brand">Pour Advice</div>
+    <button class="print-btn" onclick="window.print()">🖨 Save as PDF</button>
+    <div class="footer-meta" id="footer-generated"></div>
+  </footer>
+
+</div>
+<script>
+// ─────────────────────────────────────────────────────────────
+// DATA LAYER
+// renderReport() is the single rendering entry point.
+// Feed from CSV (current) or Supabase (future drop-in).
+// ─────────────────────────────────────────────────────────────
+
+let allRows = [];
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) throw new Error('CSV is empty or has no data rows.');
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  for (const req of ['visit_date', 'client', 'brand_name']) {
+    if (!headers.includes(req)) throw new Error(`Missing required column: "${req}"`);
+  }
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const vals = parseCSVLine(line);
+    const row  = {};
+    headers.forEach((h, idx) => { row[h] = (vals[idx] || '').trim(); });
+    if (!row.visit_date || !row.client || !row.brand_name) continue;
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') { current += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(current); current = '';
+    } else { current += ch; }
+  }
+  result.push(current);
+  return result;
+}
+
+// ── SUPABASE PLACEHOLDER ──────────────────────────────────────
+// Replace this with a real fetch when ready. Row schema must match:
+// { visit_date, client, brand_name, wine_name, follow_up_date, notes }
+//
+// async function fetchFromSupabase(brandFilter, dateFrom, dateTo) {
+//   const SUPABASE_URL = 'https://zuvsurnuyeqbgcwandwq.supabase.co';
+//   const SUPABASE_KEY = 'YOUR_ANON_KEY';
+//   let url = `${SUPABASE_URL}/rest/v1/recap_products_shown`
+//           + `?select=follow_up_date,products(brand_name,wine_name),recaps(visit_date,notes,clients(company_name))`;
+//   if (dateFrom) url += `&recaps.visit_date=gte.${dateFrom}`;
+//   if (dateTo)   url += `&recaps.visit_date=lte.${dateTo}`;
+//   const res  = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }});
+//   const data = await res.json();
+//   const rows = data.map(r => ({
+//     visit_date:     r.recaps.visit_date,
+//     client:         r.recaps.clients.company_name,
+//     brand_name:     r.products.brand_name,
+//     wine_name:      r.products.wine_name  || '',
+//     follow_up_date: r.follow_up_date      || '',
+//     notes:          r.recaps.notes        || '',
+//   }));
+//   renderReport(rows, brandFilter, dateFrom, dateTo);
+// }
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderReport(rows, brandFilter, dateFrom, dateTo) {
+
+  // Filter
+  let filtered = rows.filter(r => {
+    if (!r.visit_date) return false;
+    if (dateFrom && r.visit_date < dateFrom) return false;
+    if (dateTo   && r.visit_date > dateTo)   return false;
+    return true;
+  });
+  if (brandFilter) filtered = filtered.filter(r => r.brand_name === brandFilter);
+
+  // Stats
+  const uniqueVisits   = new Set(filtered.map(r => `${r.visit_date}||${r.client}`)).size;
+  const totalProducts  = filtered.length;
+  const totalFollowUps = filtered.filter(r => r.follow_up_date).length;
+  document.getElementById('stat-accounts').textContent  = uniqueVisits;
+  document.getElementById('stat-products').textContent  = totalProducts;
+  document.getElementById('stat-followups').textContent = totalFollowUps;
+
+  // Header labels
+  const fromLabel = dateFrom ? fmtLong(dateFrom) : '—';
+  const toLabel   = dateTo   ? fmtLong(dateTo)   : '—';
+  document.getElementById('report-title').textContent      = brandFilter || 'All Brands';
+  document.getElementById('report-date-range').textContent = `${fromLabel} – ${toLabel}`;
+
+  // Supplier banner
+  const banner = document.getElementById('supplier-banner');
+  if (brandFilter) {
+    banner.classList.remove('hidden');
+    document.getElementById('supplier-banner-name').textContent   = brandFilter;
+    document.getElementById('supplier-banner-period').textContent = `Activity Report · ${fromLabel} – ${toLabel}`;
+  } else {
+    banner.classList.add('hidden');
+  }
+
+  document.getElementById('footer-generated').textContent =
+    `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+
+  // Group: byDate → byVisit
+  const byDate = {};
+  for (const row of filtered) {
+    const d   = row.visit_date;
+    const key = `${d}||${row.client}`;
+    if (!byDate[d]) byDate[d] = {};
+    if (!byDate[d][key]) byDate[d][key] = { client: row.client, notes: '', products: [] };
+    byDate[d][key].products.push({
+      brand_name:     row.brand_name,
+      wine_name:      row.wine_name,
+      follow_up_date: row.follow_up_date,
+    });
+    if (row.notes && !byDate[d][key].notes) byDate[d][key].notes = row.notes;
+  }
+
+  const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+  const body = document.getElementById('report-body');
+  body.innerHTML = '';
+
+  if (sortedDates.length === 0) {
+    body.innerHTML = `
+      <div class="state-panel">
+        <div class="state-icon">🔍</div>
+        <div class="state-title">No visits in this period</div>
+        <div class="state-body">No records matched the selected filters. Try widening the date range.</div>
+      </div>`;
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.className = 'date-groups';
+
+  for (const date of sortedDates) {
+    const visits   = Object.values(byDate[date]);
+    const [y,m,d]  = date.split('-');
+    const dateObj  = new Date(Number(y), Number(m)-1, Number(d));
+    const weekday  = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    const dateFull = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    // Date group (outer container)
+    const group = document.createElement('div');
+    group.className = 'date-group';
+
+    // Date header
+    const header = document.createElement('div');
+    header.className = 'date-group-header';
+    header.innerHTML = `
+      <span class="date-group-weekday">${weekday.slice(0,3).toUpperCase()}</span>
+      <span class="date-group-label">${dateFull}</span>
+      <span class="date-group-count">${visits.length} account${visits.length !== 1 ? 's' : ''}</span>
+    `;
+    group.appendChild(header);
+
+    // Account visit rows
+    const rowsWrap = document.createElement('div');
+    rowsWrap.className = 'visit-rows';
+
+    for (const visit of visits) {
+      const pCount  = visit.products.length;
+      const fuCount = visit.products.filter(p => p.follow_up_date).length;
+
+      const rowEl = document.createElement('div');
+      rowEl.className = 'visit-row';
+
+      // Collapsed header
+      const rowHeader = document.createElement('div');
+      rowHeader.className = 'visit-row-header';
+      rowHeader.innerHTML = `
+        <div class="visit-client-col">
+          <div class="visit-client-name">${esc(visit.client)}</div>
+          <div class="visit-client-meta">${pCount} product${pCount !== 1 ? 's' : ''} shown${visit.notes ? ' · has notes' : ''}</div>
+        </div>
+        <div class="visit-pills">
+          <span class="pill pill-sku">${pCount} SKU${pCount !== 1 ? 's' : ''}</span>
+          ${fuCount > 0 ? `<span class="pill pill-fu">📅 ${fuCount} follow-up${fuCount !== 1 ? 's' : ''}</span>` : ''}
+        </div>
+        <span class="visit-chevron">▼</span>
+      `;
+
+      // Expanded body
+      const rowBody = document.createElement('div');
+      rowBody.className = 'visit-row-body';
+      let html = `<div class="expand-label">Products Presented</div>`;
+      for (const p of visit.products) {
+        html += `
+          <div class="product-line">
+            <div class="product-line-name">
+              <span class="product-brand">${esc(p.brand_name)}</span>
+              ${p.wine_name ? `<span class="product-wine"> — ${esc(p.wine_name)}</span>` : ''}
+            </div>
+            ${p.follow_up_date ? `<span class="product-fu">↪ ${fmtShort(p.follow_up_date)}</span>` : ''}
+          </div>`;
+      }
+      if (visit.notes) {
+        html += `
+          <div class="visit-notes-block">
+            <div class="visit-notes-label">Notes</div>
+            ${esc(visit.notes)}
+          </div>`;
+      }
+      rowBody.innerHTML = html;
+
+      rowHeader.addEventListener('click', () => rowEl.classList.toggle('open'));
+      rowEl.appendChild(rowHeader);
+      rowEl.appendChild(rowBody);
+      rowsWrap.appendChild(rowEl);
+    }
+
+    group.appendChild(rowsWrap);
+    container.appendChild(group);
+  }
+
+  body.appendChild(container);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtLong(ds) {
+  if (!ds) return '';
+  const [y,m,d] = ds.split('-');
+  return new Date(Number(y),Number(m)-1,Number(d))
+    .toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+}
+function fmtShort(ds) {
+  if (!ds) return '';
+  const [y,m,d] = ds.split('-');
+  return new Date(Number(y),Number(m)-1,Number(d))
+    .toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+function defaultRange() {
+  const today = new Date();
+  const to    = today.toISOString().split('T')[0];
+  const from  = new Date(today.getTime()-6*86400000).toISOString().split('T')[0];
+  return { from, to };
+}
+function populateBrandFilter(rows) {
+  const brands = [...new Set(rows.map(r=>r.brand_name).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-supplier');
+  sel.innerHTML = '<option value="">All Brands</option>';
+  brands.forEach(b => { const o=document.createElement('option'); o.value=b; o.textContent=b; sel.appendChild(o); });
+}
+function refreshReport() {
+  if (!allRows.length) return;
+  renderReport(
+    allRows,
+    document.getElementById('filter-supplier').value,
+    document.getElementById('date-from').value,
+    document.getElementById('date-to').value
+  );
+}
+
+// ── EVENTS ────────────────────────────────────────────────────
+document.getElementById('csv-file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('upload-status');
+  statusEl.className = 'upload-status';
+  statusEl.textContent = 'Reading…';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      allRows = parseCSV(ev.target.result);
+      if (!allRows.length) throw new Error('No valid rows found.');
+      statusEl.className = 'upload-status loaded';
+      statusEl.textContent = `✓ ${allRows.length} rows loaded`;
+      populateBrandFilter(allRows);
+      const { from, to } = defaultRange();
+      document.getElementById('date-from').value = from;
+      document.getElementById('date-to').value   = to;
+      refreshReport();
+    } catch(err) {
+      statusEl.className = 'upload-status error';
+      statusEl.textContent = '✗ ' + err.message;
+    }
+  };
+  reader.onerror = () => {
+    statusEl.className = 'upload-status error';
+    statusEl.textContent = '✗ Could not read file.';
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('filter-supplier').addEventListener('change', refreshReport);
+document.getElementById('date-from').addEventListener('change', refreshReport);
+document.getElementById('date-to').addEventListener('change', refreshReport);
+
+// ── INIT ──────────────────────────────────────────────────────
+(function() {
+  const { from, to } = defaultRange();
+  document.getElementById('date-from').value = from;
+  document.getElementById('date-to').value   = to;
+  document.getElementById('footer-generated').textContent =
+    `Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}`;
+})();
+</script>
+</body>
+</html>
