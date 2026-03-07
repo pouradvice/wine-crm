@@ -3988,6 +3988,7 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
   const [rows,      setRows]      = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [openKeys,  setOpenKeys]  = useState({});
+  const [view,      setView]      = useState('skus');
 
   const dateFrom = dateRange === 'all' ? null : (() => {
     const d = new Date(); d.setDate(d.getDate() - parseInt(dateRange));
@@ -4046,7 +4047,9 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
   }, [dateRange, supplier.id]);
 
   const toggle = (key) => setOpenKeys(function(p) { return Object.assign({}, p, { [key]: !p[key] }); });
+  const switchView = (v) => { setView(v); setOpenKeys({}); };
 
+  /* ── SKUs Shown grouping ─────────────────────────────── */
   const byProduct = {};
   (rows || []).forEach(function(r) {
     if (!byProduct[r.product_id]) byProduct[r.product_id] = {
@@ -4061,6 +4064,36 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
     return (a[1].brand_name + (a[1].wine_name || '')).localeCompare(b[1].brand_name + (b[1].wine_name || ''));
   });
 
+  /* ── Accounts Visited grouping ───────────────────────── */
+  const byAccount = {};
+  (rows || []).forEach(function(r) {
+    if (!byAccount[r.client]) byAccount[r.client] = { client: r.client, visits: [] };
+    byAccount[r.client].visits.push(r);
+  });
+  Object.values(byAccount).forEach(function(a) {
+    a.visits.sort(function(x, y) {
+      return (x.brand_name + (x.wine_name || '')).localeCompare(y.brand_name + (y.wine_name || ''));
+    });
+  });
+  const sortedAccounts = Object.entries(byAccount).sort(function(a, b) {
+    return a[0].localeCompare(b[0]);
+  });
+
+  /* ── Orders Placed ───────────────────────────────────── */
+  const orderRows = (rows || [])
+    .filter(function(r) { return r.feedback === 'yes_today'; })
+    .sort(function(a, b) { return b.visit_date.localeCompare(a.visit_date); });
+
+  /* ── Warm Leads ──────────────────────────────────────── */
+  const leadRows = (rows || [])
+    .filter(function(r) { return r.feedback === 'yes_later' || r.feedback === 'maybe_later'; })
+    .sort(function(a, b) {
+      const da = a.follow_up_date || '9999-99-99';
+      const db = b.follow_up_date || '9999-99-99';
+      return da.localeCompare(db) || a.client.localeCompare(b.client);
+    });
+
+  /* ── KPIs ────────────────────────────────────────────── */
   const kpiVisits = rows ? new Set(rows.map(function(r) { return r.visit_date + '||' + r.client; })).size : 0;
   const kpiSkus   = sortedProducts.length;
   const kpiOrders = rows ? rows.filter(function(r) { return r.feedback === 'yes_today'; }).length : 0;
@@ -4072,6 +4105,62 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
     if (fb === 'maybe_later') return { text: 'Interested', color: '#9a6200', bg: '#fef3e2' };
     if (fb === 'no')          return { text: 'Pass',       color: '#888',    bg: '#f0ede8' };
     return null;
+  };
+
+  /* ── Shared sub-row renderer (used by SKUs + Accounts views) ── */
+  const renderVisitSubRow = function(v, i, total) {
+    const fb = fbLabel(v.feedback);
+    return (
+      <div key={i} style={{
+        display: 'flex', alignItems: 'baseline', gap: '.75rem',
+        padding: '.6rem 1.1rem', flexWrap: 'wrap',
+        borderBottom: i < total - 1 ? '1px solid var(--mist)' : 'none',
+      }}>
+        <div style={{ flex: '1 1 160px', fontFamily: "'Playfair Display', serif", fontSize: '.88rem', fontWeight: 600, color: 'var(--ink)' }}>
+          {v.client || (v.brand_name + (v.wine_name ? ' — ' + v.wine_name : ''))}
+        </div>
+        <div style={{ fontSize: '.75rem', color: '#8a7a64', flexShrink: 0 }}>
+          {fmt(v.visit_date)}
+        </div>
+        {fb && (
+          <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '.1rem .45rem', borderRadius: 20, background: fb.bg, color: fb.color, flexShrink: 0 }}>
+            {fb.text}
+          </span>
+        )}
+        {v.follow_up_date && (
+          <span style={{ fontSize: '.7rem', color: '#8a6420', background: '#fdf8ee', border: '1px solid #e8c57a', borderRadius: 4, padding: '.08rem .4rem', flexShrink: 0 }}>
+            {'↪ ' + fmt(v.follow_up_date)}
+          </span>
+        )}
+        {v.notes && (
+          <div style={{ width: '100%', marginTop: '.25rem', fontSize: '.75rem', color: '#6b5d4a', paddingLeft: '.25rem', borderLeft: '2px solid var(--sage)' }}>
+            {v.notes}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ── View toggle button bar ──────────────────────────── */
+  const viewBtn = function(id, label) {
+    const active = view === id;
+    return (
+      <button
+        key={id}
+        onClick={function() { switchView(id); }}
+        style={{
+          padding: '.38rem .85rem', border: 'none', borderRadius: 5,
+          fontFamily: "'DM Sans', sans-serif", fontSize: '.78rem', fontWeight: 500,
+          cursor: 'pointer', letterSpacing: '.03em', transition: 'all .15s',
+          background: active ? 'var(--wine)' : 'var(--parchment)',
+          color: active ? '#fff' : '#6b5d4a',
+          boxShadow: active ? '0 2px 6px rgba(107,31,42,.2)' : 'none',
+          border: active ? 'none' : '1px solid var(--mist)',
+        }}
+      >
+        {label}
+      </button>
+    );
   };
 
   return (
@@ -4103,13 +4192,32 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
 
       {!loading && rows && rows.length > 0 && (
         <div>
-          <div className="kpi-row" style={{ marginBottom: '1.25rem' }}>
-            <div className="kpi-card"><div className="kpi-label">Accounts Visited</div><div className="kpi-value">{kpiVisits}</div></div>
-            <div className="kpi-card"><div className="kpi-label">SKUs Presented</div><div className="kpi-value gold">{kpiSkus}</div></div>
-            <div className="kpi-card"><div className="kpi-label">Orders Placed</div><div className="kpi-value sage">{kpiOrders}</div></div>
-            <div className="kpi-card"><div className="kpi-label">Warm Leads</div><div className="kpi-value wine">{kpiWarm}</div></div>
+          {/* KPI cards */}
+          <div className="kpi-row" style={{ marginBottom: '1.1rem' }}>
+            <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={function() { switchView('accounts'); }}>
+              <div className="kpi-label">Accounts Visited</div><div className="kpi-value">{kpiVisits}</div>
+            </div>
+            <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={function() { switchView('skus'); }}>
+              <div className="kpi-label">SKUs Presented</div><div className="kpi-value gold">{kpiSkus}</div>
+            </div>
+            <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={function() { switchView('orders'); }}>
+              <div className="kpi-label">Orders Placed</div><div className="kpi-value sage">{kpiOrders}</div>
+            </div>
+            <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={function() { switchView('leads'); }}>
+              <div className="kpi-label">Warm Leads</div><div className="kpi-value wine">{kpiWarm}</div>
+            </div>
           </div>
-          {sortedProducts.map(function(entry) {
+
+          {/* View toggle buttons */}
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1.1rem' }}>
+            {viewBtn('skus',     'SKUs Shown')}
+            {viewBtn('accounts', 'Accounts Visited')}
+            {viewBtn('orders',   'Orders Placed')}
+            {viewBtn('leads',    'Warm Leads')}
+          </div>
+
+          {/* ── SKUs Shown view (default) ─────────────────── */}
+          {view === 'skus' && sortedProducts.map(function(entry) {
             const pid     = entry[0];
             const product = entry[1];
             const isOpen     = !!openKeys[pid];
@@ -4136,15 +4244,53 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
                 {isOpen && (
                   <div style={{ background: '#fff' }}>
                     {product.visits.map(function(v, i) {
+                      return renderVisitSubRow(v, i, product.visits.length);
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* ── Accounts Visited view ─────────────────────── */}
+          {view === 'accounts' && sortedAccounts.map(function(entry) {
+            const accountName = entry[0];
+            const account     = entry[1];
+            const isOpen      = !!openKeys['acct_' + accountName];
+            const orderCount  = account.visits.filter(function(v) { return v.feedback === 'yes_today'; }).length;
+            const warmCount   = account.visits.filter(function(v) { return v.feedback === 'yes_later' || v.feedback === 'maybe_later'; }).length;
+            const lastVisit   = account.visits.slice().sort(function(a, b) { return b.visit_date.localeCompare(a.visit_date); })[0];
+            return (
+              <div key={accountName} className="ar-report-wrap" style={{ marginBottom: '.85rem' }}>
+                <div className="ar-report-header" style={{ cursor: 'pointer' }} onClick={function() { toggle('acct_' + accountName); }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ar-report-title">{accountName}</div>
+                    <div className="ar-report-sub">
+                      {account.visits.length} product{account.visits.length !== 1 ? 's' : ''} shown
+                      {lastVisit && <span style={{ marginLeft: '.5rem' }}>· {fmt(lastVisit.visit_date)}</span>}
+                      {orderCount > 0 && <span style={{ color: '#1a5c2e', fontWeight: 600 }}> · {orderCount} sold</span>}
+                      {warmCount  > 0 && <span style={{ color: 'var(--gold)' }}> · {warmCount} warm</span>}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '.7rem', color: 'var(--wine)', flexShrink: 0, marginLeft: '.5rem' }}>
+                    {isOpen ? '▲' : '▼'}
+                  </span>
+                </div>
+                {isOpen && (
+                  <div style={{ background: '#fff' }}>
+                    {account.visits.map(function(v, i) {
                       const fb = fbLabel(v.feedback);
                       return (
                         <div key={i} style={{
                           display: 'flex', alignItems: 'baseline', gap: '.75rem',
                           padding: '.6rem 1.1rem', flexWrap: 'wrap',
-                          borderBottom: i < product.visits.length - 1 ? '1px solid var(--mist)' : 'none',
+                          borderBottom: i < account.visits.length - 1 ? '1px solid var(--mist)' : 'none',
                         }}>
                           <div style={{ flex: '1 1 160px', fontFamily: "'Playfair Display', serif", fontSize: '.88rem', fontWeight: 600, color: 'var(--ink)' }}>
-                            {v.client}
+                            {v.brand_name}{v.wine_name ? ' — ' + v.wine_name : ''}
+                          </div>
+                          <div style={{ fontSize: '.72rem', color: '#8a7a64', fontFamily: 'monospace', flexShrink: 0 }}>
+                            {v.sku_number}
                           </div>
                           <div style={{ fontSize: '.75rem', color: '#8a7a64', flexShrink: 0 }}>
                             {fmt(v.visit_date)}
@@ -4172,6 +4318,114 @@ function SupplierDataView({ supplier, onSignOut, onToast }) {
               </div>
             );
           })}
+
+          {/* ── Orders Placed view ───────────────────────── */}
+          {view === 'orders' && (
+            <div className="ar-report-wrap">
+              <div className="ar-report-header" style={{ cursor: 'default' }}>
+                <div>
+                  <div className="ar-report-title">Orders Placed</div>
+                  <div className="ar-report-sub">{orderRows.length} order{orderRows.length !== 1 ? 's' : ''} in this period</div>
+                </div>
+              </div>
+              {orderRows.length === 0 ? (
+                <div style={{ padding: '2rem 1.1rem', textAlign: 'center', color: '#8a7a64', fontStyle: 'italic' }}>
+                  No orders placed in this period.
+                </div>
+              ) : (
+                <div style={{ background: '#fff' }}>
+                  {orderRows.map(function(r, i) {
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'baseline', gap: '.75rem',
+                        padding: '.65rem 1.1rem', flexWrap: 'wrap',
+                        borderBottom: i < orderRows.length - 1 ? '1px solid var(--mist)' : 'none',
+                      }}>
+                        <div style={{ flex: '1 1 160px', fontFamily: "'Playfair Display', serif", fontSize: '.88rem', fontWeight: 600, color: 'var(--ink)' }}>
+                          {r.client}
+                        </div>
+                        <div style={{ flex: '1 1 140px', fontSize: '.83rem', color: '#6b5d4a' }}>
+                          {r.brand_name}{r.wine_name ? ' — ' + r.wine_name : ''}
+                          {r.sku_number && <span style={{ marginLeft: '.4rem', fontSize: '.72rem', fontFamily: 'monospace', color: '#8a7a64' }}>{r.sku_number}</span>}
+                        </div>
+                        <div style={{ fontSize: '.75rem', color: '#8a7a64', flexShrink: 0 }}>
+                          {fmt(r.visit_date)}
+                        </div>
+                        <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '.1rem .45rem', borderRadius: 20, background: '#e8f0ea', color: '#1a5c2e', flexShrink: 0 }}>
+                          Sold
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Warm Leads view ──────────────────────────── */}
+          {view === 'leads' && (
+            <div className="ar-report-wrap">
+              <div className="ar-report-header" style={{ cursor: 'default' }}>
+                <div>
+                  <div className="ar-report-title">Warm Leads</div>
+                  <div className="ar-report-sub">{leadRows.length} lead{leadRows.length !== 1 ? 's' : ''} · sorted by follow-up date</div>
+                </div>
+              </div>
+              {leadRows.length === 0 ? (
+                <div style={{ padding: '2rem 1.1rem', textAlign: 'center', color: '#8a7a64', fontStyle: 'italic' }}>
+                  No warm leads in this period.
+                </div>
+              ) : (
+                <div style={{ background: '#fff' }}>
+                  {leadRows.map(function(r, i) {
+                    const isCommitted  = r.feedback === 'yes_later';
+                    const labelText    = isCommitted ? 'Committed' : 'Interested';
+                    const labelColor   = isCommitted ? '#7a8c6e'   : '#9a6200';
+                    const labelBg      = isCommitted ? '#eef1eb'   : '#fef3e2';
+                    const today        = new Date().toISOString().slice(0, 10);
+                    const overdue      = r.follow_up_date && r.follow_up_date < today;
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'baseline', gap: '.75rem',
+                        padding: '.65rem 1.1rem', flexWrap: 'wrap',
+                        borderBottom: i < leadRows.length - 1 ? '1px solid var(--mist)' : 'none',
+                        borderLeft: overdue ? '3px solid var(--wine)' : '3px solid var(--gold)',
+                      }}>
+                        <div style={{ flex: '1 1 160px', fontFamily: "'Playfair Display', serif", fontSize: '.88rem', fontWeight: 600, color: 'var(--ink)' }}>
+                          {r.client}
+                        </div>
+                        <div style={{ flex: '1 1 140px', fontSize: '.83rem', color: '#6b5d4a' }}>
+                          {r.brand_name}{r.wine_name ? ' — ' + r.wine_name : ''}
+                          {r.sku_number && <span style={{ marginLeft: '.4rem', fontSize: '.72rem', fontFamily: 'monospace', color: '#8a7a64' }}>{r.sku_number}</span>}
+                        </div>
+                        <span style={{ fontSize: '.68rem', fontWeight: 600, padding: '.1rem .45rem', borderRadius: 20, background: labelBg, color: labelColor, flexShrink: 0 }}>
+                          {labelText}
+                        </span>
+                        {r.follow_up_date ? (
+                          <span style={{
+                            fontSize: '.7rem', fontWeight: 600, padding: '.08rem .4rem', borderRadius: 4, flexShrink: 0,
+                            background: overdue ? '#fde8e8' : '#fdf8ee',
+                            color:      overdue ? 'var(--wine)' : '#8a6420',
+                            border:     overdue ? '1px solid var(--wine)' : '1px solid #e8c57a',
+                          }}>
+                            {'↪ ' + fmt(r.follow_up_date)}{overdue ? ' — overdue' : ''}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '.7rem', color: '#aaa', fontStyle: 'italic', flexShrink: 0 }}>no date set</span>
+                        )}
+                        {r.notes && (
+                          <div style={{ width: '100%', marginTop: '.25rem', fontSize: '.75rem', color: '#6b5d4a', paddingLeft: '.25rem', borderLeft: '2px solid var(--sage)' }}>
+                            {r.notes}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
     </div>
