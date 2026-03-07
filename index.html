@@ -729,34 +729,55 @@ function ClientDetail({ client, onClose, onEdit, onRefresh }) {
 
   useEffect(() => {
     if (dtab === 'seen' && seen === null) {
-      sb.from('recap_products_shown')
-        .select('feedback, follow_up_date, products(id, brand_name, wine_name, sku_number), recaps!inner(client_id, visit_date)')
-        .filter('recaps.client_id', 'eq', client.id)
-        .order('recaps.visit_date', { ascending: false })
-        .then(({ data }) => {
-          // Dedupe by product, keep most recent feedback
-          const map = {};
-          (data || []).forEach(r => {
-            const pid = r.products?.id;
-            if (pid && !map[pid]) map[pid] = r;
-          });
-          setSeen(Object.values(map));
+      // Step 1: get all recap IDs for this client
+      sb.from('recaps')
+        .select('id')
+        .eq('client_id', client.id)
+        .then(({ data: recapRows }) => {
+          const recapIds = (recapRows || []).map(r => r.id);
+          if (recapIds.length === 0) { setSeen([]); return; }
+          // Step 2: get products shown in those recaps
+          sb.from('recap_products_shown')
+            .select('feedback, follow_up_date, recap_id, products(id, brand_name, wine_name, sku_number)')
+            .in('recap_id', recapIds)
+            .then(({ data }) => {
+              // Dedupe by product, keep most recent feedback
+              const map = {};
+              (data || []).forEach(r => {
+                const pid = r.products?.id;
+                if (pid && !map[pid]) map[pid] = r;
+              });
+              setSeen(Object.values(map));
+            });
         });
     }
     if (dtab === 'unseen' && unseen === null) {
-      // Get all product IDs shown to this client
-      sb.from('recap_products_shown')
-        .select('product_id, recaps!inner(client_id)')
-        .filter('recaps.client_id', 'eq', client.id)
-        .then(({ data: shownData }) => {
-          const shownIds = [...new Set((shownData || []).map(r => r.product_id))];
-          // Filter "Not Yet Shown" by target_account_type matching this client's company_type
-          let q = sb.from('products')
-            .select('id, brand_name, wine_name, sku_number, type, target_account_types')
-            .eq('is_active', true)
-            .or(`target_account_types.cs.{"${client.company_type}"},target_account_types.is.null`);
-          if (shownIds.length > 0) q = q.not('id', 'in', `(${shownIds.join(',')})`);
-          q.order('brand_name').then(({ data }) => setUnseen(data || []));
+      // Step 1: get recap IDs for this client, then product IDs shown
+      sb.from('recaps')
+        .select('id')
+        .eq('client_id', client.id)
+        .then(({ data: recapRows }) => {
+          const recapIds = (recapRows || []).map(r => r.id);
+          if (recapIds.length === 0) {
+            // No visits — show all targeted products
+            sb.from('products')
+              .select('id, brand_name, wine_name, sku_number, type, target_account_types')
+              .eq('is_active', true)
+              .order('brand_name')
+              .then(({ data }) => setUnseen(data || []));
+            return;
+          }
+          sb.from('recap_products_shown')
+            .select('product_id')
+            .in('recap_id', recapIds)
+            .then(({ data: shownData }) => {
+              const shownIds = [...new Set((shownData || []).map(r => r.product_id))];
+              let q = sb.from('products')
+                .select('id, brand_name, wine_name, sku_number, type, target_account_types')
+                .eq('is_active', true);
+              if (shownIds.length > 0) q = q.not('id', 'in', `(${shownIds.join(',')})`);
+              q.order('brand_name').then(({ data }) => setUnseen(data || []));
+            });
         });
     }
   }, [dtab, client.id]);
@@ -879,6 +900,30 @@ function ClientsScreen({ onToast }) {
   const [skuMap,       setSkuMap]    = useState({});
   const [visitMap,     setVisitMap]  = useState({});
   const searchTimer = useRef(null);
+  const stateRef = useRef({});
+  stateRef.current = { search, filterStatus, filterType, filterTier };
+
+  // Debounced search — fires 300ms after last keystroke
+  const handleSearch = (val) => {
+    setSearch(val);
+    clearTimeout(searchTimer.current);
+    const { filterStatus: status, filterType: type, filterTier: tier } = stateRef.current;
+    searchTimer.current = setTimeout(() => query(val, status, type, tier), 300);
+  };
+
+  // Filters re-run immediately with latest search term
+  const handleFilter = (key, val) => {
+    const next = { ...stateRef.current, [key === 'status' ? 'filterStatus' : key === 'type' ? 'filterType' : 'filterTier']: val };
+    if (key === 'status') setFS(val);
+    if (key === 'type')   setFT(val);
+    if (key === 'tier')   setFTier(val);
+    clearTimeout(searchTimer.current);
+    query(next.search, next.filterStatus, next.filterType, next.filterTier);
+  };
+  const load = () => {
+    const { search: term, filterStatus: status, filterType: type, filterTier: tier } = stateRef.current;
+    query(term, status, type, tier);
+  };
 
   const query = async (term, status, type, tier) => {
     if (!term && !status && !type && !tier) { setClients([]); return; }
@@ -900,16 +945,24 @@ function ClientsScreen({ onToast }) {
     if (results.length === 0) { setClients([]); setLoading(false); return; }
 
     // Fetch last visit + SKU counts only for the returned clients
-    const ids = results.map(c => `"${c.id}"`).join(',');
+    const clientIds = results.map(c => c.id);
 
-    const [{ data: recapData }, { data: shownData }] = await Promise.all([
+    const [{ data: recapData }, { data: recapIdData }] = await Promise.all([
       sb.from('recaps').select('client_id, visit_date')
-        .in('client_id', results.map(c => c.id))
+        .in('client_id', clientIds)
         .order('visit_date', { ascending: false }),
-      sb.from('recap_products_shown')
-        .select('product_id, recaps!inner(client_id)')
-        .filter('recaps.client_id', 'in', `(${results.map(c => c.id).join(',')})`),
+      sb.from('recaps').select('id, client_id')
+        .in('client_id', clientIds),
     ]);
+
+    // Use recap IDs to look up products shown — avoids unreliable join filtering
+    const recapIds = (recapIdData || []).map(r => r.id);
+    const recapClientMap = {};
+    (recapIdData || []).forEach(r => { recapClientMap[r.id] = r.client_id; });
+
+    const { data: shownData } = recapIds.length > 0
+      ? await sb.from('recap_products_shown').select('product_id, recap_id').in('recap_id', recapIds)
+      : { data: [] };
 
     const vMap = {};
     (recapData || []).forEach(r => {
@@ -918,7 +971,7 @@ function ClientsScreen({ onToast }) {
 
     const sMap = {};
     (shownData || []).forEach(r => {
-      const cid = r.recaps?.client_id;
+      const cid = recapClientMap[r.recap_id];
       if (!cid) return;
       if (!sMap[cid]) sMap[cid] = new Set();
       sMap[cid].add(r.product_id);
@@ -929,24 +982,6 @@ function ClientsScreen({ onToast }) {
     setSkuMap(sMap);
     setLoading(false);
   };
-
-  // Debounced search — fires 300ms after last keystroke
-  const handleSearch = (val) => {
-    setSearch(val);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => query(val, filterStatus, filterType, filterTier), 300);
-  };
-
-  // Filters re-run immediately
-  const handleFilter = (key, val) => {
-    const next = { status: filterStatus, type: filterType, tier: filterTier, [key]: val };
-    if (key === 'status') setFS(val);
-    if (key === 'type')   setFT(val);
-    if (key === 'tier')   setFTier(val);
-    query(search, next.status, next.type, next.tier);
-  };
-
-  const load = () => query(search, filterStatus, filterType, filterTier);
 
   const lastVisit = (c) => visitMap[c.id] || null;
   const skuCount  = (c) => skuMap[c.id]?.size || 0;
